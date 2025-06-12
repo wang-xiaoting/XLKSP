@@ -1,4 +1,6 @@
 import router from '@ohos.router'
+import picker from '@ohos.file.picker';
+import prompt from '@ohos.prompt';
 
 /**
  * 模式选项接口
@@ -17,6 +19,18 @@ interface ModeOption {
 type FilterType = 'none' | 'warm' | 'cool' | 'vintage' | 'dramatic'
 
 /**
+ * 发布内容数据结构
+ */
+interface PublishPayload {
+  type: string;
+  content: string;
+  filter: FilterType;
+  isPrivate: boolean;
+  media: string;
+  createdAt: string;
+}
+
+/**
  * 创建内容页面组件
  * 用于创建和发布新的内容
  */
@@ -27,6 +41,8 @@ struct Create {
   @State previewContent: string = ''             // 预览内容
   @State selectedFilter: FilterType = 'none'     // 当前选择的滤镜
   @State isPrivate: boolean = false              // 是否设为私密
+  @State selectedMedia: string = ''              // 选中的媒体文件路径
+  @State isPublishing: boolean = false           // 发布中状态
 
   // 创建模式选项配置
   private modeOptions: ModeOption[] = [
@@ -37,8 +53,82 @@ struct Create {
   ]
 
   /**
+   * 从相册选择媒体文件
+   */
+  async selectFromGallery() {
+    try {
+      const photoPicker = new picker.PhotoViewPicker();
+      const result: picker.PhotoSelectResult = await photoPicker.select({
+        MIMEType: this.currentMode === 'video' ? picker.PhotoViewMIMETypes.VIDEO_TYPE : picker.PhotoViewMIMETypes.IMAGE_TYPE,
+        maxSelectNumber: 1
+      });
+
+      if (result && result.photoUris && result.photoUris.length > 0) {
+        this.selectedMedia = result.photoUris[0];
+        this.previewContent = this.selectedMedia;
+        console.info('Selected media:', this.selectedMedia);
+      }
+    } catch (err) {
+      console.error('Failed to select media:', err);
+      prompt.showToast({
+        message: '选择媒体文件失败',
+        duration: 2000
+      });
+    }
+  }
+
+  /**
+   * 发布内容功能
+   */
+  async publishContent() {
+    if (this.isPublishing) {
+      return;
+    }
+    if (!this.previewContent || this.previewContent.length === 0) {
+      prompt.showToast({
+        message: '请先选择或填写内容',
+        duration: 2000
+      });
+      return;
+    }
+    this.isPublishing = true;
+
+    // 明确类型的对象
+    const payload: PublishPayload = {
+      type: this.currentMode,
+      content: this.previewContent,
+      filter: this.selectedFilter,
+      isPrivate: this.isPrivate,
+      media: this.selectedMedia,
+      createdAt: new Date().toISOString()
+    };
+
+    // 模拟发布时用到payload，防止未读报错
+    console.info('发布数据：', payload);
+
+    try {
+      // 这里只做演示：假装等待1秒
+      await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+
+      prompt.showToast({
+        message: '发布成功！',
+        duration: 2000
+      });
+      setTimeout(() => {
+        router.back();
+      }, 800);
+    } catch (err) {
+      prompt.showToast({
+        message: '发布失败，请稍后重试',
+        duration: 2000
+      });
+    } finally {
+      this.isPublishing = false;
+    }
+  }
+
+  /**
    * 页面头部构建器
-   * 包含取消按钮、标题和发布按钮
    */
   @Builder Header() {
     Row() {
@@ -58,14 +148,14 @@ struct Create {
         .fontColor('#FFFFFF')
 
       Button() {
-        Text('发布')
-          .fontColor('#FF0050')
+        Text(this.isPublishing ? '发布中...' : '发布')
+          .fontColor(this.isPublishing ? '#AAAAAA' : '#FF0050')
           .fontSize(16)
       }
       .backgroundColor('transparent')
-      .enabled(this.previewContent.length > 0)
+      .enabled(this.previewContent.length > 0 && !this.isPublishing)
       .onClick(() => {
-        // 处理发布逻辑
+        this.publishContent()
       })
     }
     .width('100%')
@@ -90,6 +180,7 @@ struct Create {
         .onClick(() => {
           this.currentMode = item.key
           this.previewContent = ''
+          this.selectedMedia = ''
         })
       })
     }
@@ -105,47 +196,71 @@ struct Create {
   @Builder PreviewArea() {
     Stack() {
       if (this.currentMode === 'video') {
-        Column() {
-          Text('点击录制视频')
-            .fontSize(16)
-            .fontColor('#FFFFFF')
-            .opacity(0.8)
-          Text('或')
-            .fontSize(14)
-            .fontColor('#FFFFFF')
-            .opacity(0.6)
-            .margin({ top: 10, bottom: 10 })
-          Button('从相册选择')
-            .backgroundColor('#FF0050')
-            .height(40)
-            .width(120)
-            .borderRadius(20)
+        if (this.selectedMedia) {
+          Video({
+            src: this.selectedMedia,
+            currentProgressRate: 1.0,
+            controller: new VideoController()
+          })
+            .width('100%')
+            .height('100%')
+            .objectFit(ImageFit.Cover)
+        } else {
+          Column() {
+            Text('点击录制视频')
+              .fontSize(16)
+              .fontColor('#FFFFFF')
+              .opacity(0.8)
+            Text('或')
+              .fontSize(14)
+              .fontColor('#FFFFFF')
+              .opacity(0.6)
+              .margin({ top: 10, bottom: 10 })
+            Button('从相册选择')
+              .backgroundColor('#FF0050')
+              .height(40)
+              .width(120)
+              .borderRadius(20)
+              .onClick(() => {
+                this.selectFromGallery()
+              })
+          }
+          .width('100%')
+          .height('100%')
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
         }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
       } else if (this.currentMode === 'photo') {
-        Column() {
-          Text('点击拍摄照片')
-            .fontSize(16)
-            .fontColor('#FFFFFF')
-            .opacity(0.8)
-          Text('或')
-            .fontSize(14)
-            .fontColor('#FFFFFF')
-            .opacity(0.6)
-            .margin({ top: 10, bottom: 10 })
-          Button('从相册选择')
-            .backgroundColor('#FF0050')
-            .height(40)
-            .width(120)
-            .borderRadius(20)
+        if (this.selectedMedia) {
+          Image(this.selectedMedia)
+            .width('100%')
+            .height('100%')
+            .objectFit(ImageFit.Cover)
+        } else {
+          Column() {
+            Text('点击拍摄照片')
+              .fontSize(16)
+              .fontColor('#FFFFFF')
+              .opacity(0.8)
+            Text('或')
+              .fontSize(14)
+              .fontColor('#FFFFFF')
+              .opacity(0.6)
+              .margin({ top: 10, bottom: 10 })
+            Button('从相册选择')
+              .backgroundColor('#FF0050')
+              .height(40)
+              .width(120)
+              .borderRadius(20)
+              .onClick(() => {
+                this.selectFromGallery()
+              })
+          }
+          .width('100%')
+          .height('100%')
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
         }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
       } else if (this.currentMode === 'music') {
         Column() {
           Text('点击录制音频')
@@ -269,4 +384,3 @@ struct Create {
     .backgroundColor('#000000')
   }
 }
-
