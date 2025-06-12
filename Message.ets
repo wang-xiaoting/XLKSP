@@ -1,93 +1,37 @@
 import router from '@ohos.router';
+import { dataManager, Message, ChatMessage } from '../utils/DataManager';
 
-/**
- * 私信消息接口
- * 定义私信消息的数据结构
- */
-interface Message {
-  id: number,           // 消息ID
-  avatar: Resource,     // 发送者头像
-  name: string,         // 发送者名称
-  time: string,         // 发送时间
-  content: string,      // 消息内容
-  unreadCount?: number  // 未读消息数（可选）
-}
-
-/**
- * 系统通知接口
- * 定义系统通知的数据结构
- */
 interface Notification {
-  id: number,           // 通知ID
-  avatar: Resource,     // 相关用户头像
-  name: string,         // 相关用户名称
-  time: string,         // 通知时间
-  type: string,         // 通知类型
-  content?: string      // 通知内容（可选）
+  id: number,
+  avatar: Resource,
+  name: string,
+  time: string,
+  type: string,
+  content?: string
 }
 
-/**
- * 导航项接口
- * 定义底部导航栏项的数据结构
- */
 interface NavItem {
-  icon: string,         // 导航图标
-  label: string,        // 导航标签
-  route: string,        // 导航路由
-  active?: boolean      // 是否激活（可选）
+  icon: string,
+  label: string,
+  route: string,
+  active?: boolean
 }
 
-/**
- * 标签类型
- * 定义消息页面的标签类型
- */
 type TabType = 'private' | 'notification' | 'mention' | 'comment';
 
-/**
- * 消息页面组件
- * 用于显示用户的私信和系统通知
- */
 @Entry
 @Component
 struct Messages {
-  @State currentTab: TabType = 'private'  // 当前选中的标签
-  @State messages: Message[] = [           // 私信消息列表
-    {
-      id: 1,
-      avatar: $r('app.media.profile1'),
-      name: '舞蹈达人',
-      time: '12:30',
-      content: '你好，请问你对最新的舞蹈视频有什么建议吗？我觉得你的动作编排很专业！',
-      unreadCount: 2
-    },
-    {
-      id: 2,
-      avatar: $r('app.media.profile2'),
-      name: '音乐制作人',
-      time: '昨天',
-      content: '我刚上传了新的音乐，希望你能听听看，给点建议！'
-    }
-  ]
+  @State currentTab: TabType = 'private'
+  @State messages: Message[] = []
+  @State notifications: Notification[] = []
+  @State searchText: string = ''
+  @State filteredMessages: Message[] = []
+  @State showSendDialog: boolean = false
+  @State sendMessageText: string = ''
+  @State chatTarget: Message | null = null
+  @State sendTargetName: string = ''
 
-  @State notifications: Notification[] = [  // 系统通知列表
-    {
-      id: 1,
-      avatar: $r('app.media.profile1'),
-      name: '舞蹈达人',
-      time: '30分钟前',
-      type: 'comment',
-      content: '这个动作编排真不错，我很喜欢！'
-    },
-    {
-      id: 2,
-      avatar: $r('app.media.profile2'),
-      name: '音乐制作人',
-      time: '2小时前',
-      type: 'like'
-    }
-  ]
-
-  // 标签名称映射
   private readonly tabNames: Record<TabType, string> = {
     'private': '私信',
     'notification': '通知',
@@ -95,13 +39,11 @@ struct Messages {
     'comment': '评论'
   }
 
-  // 通知类型文本映射
   private readonly notificationTypes: Record<string, string> = {
     'comment': '评论了你的视频',
     'like': '点赞了你的视频'
   }
 
-  // 底部导航项配置
   private readonly navItems: NavItem[] = [
     { icon: '🏠', label: '首页', route: 'Index', active: false },
     { icon: '🔍', label: '发现', route: 'Discover', active: false },
@@ -110,47 +52,146 @@ struct Messages {
     { icon: '👤', label: '我', route: 'Profile', active: false }
   ]
 
-  /**
-   * 页面头部构建器
-   * 包含返回按钮、标题和搜索按钮
-   */
+  async aboutToAppear() {
+    // 加载本地消息列表
+    const msgs = await dataManager.getPrivateMessages()
+    if (Array.isArray(msgs) && msgs.length > 0) {
+      this.messages = msgs
+    } else {
+      this.messages = [
+        {
+          id: 1,
+          avatar: $r('app.media.profile1'),
+          name: '舞蹈达人',
+          time: '12:30',
+          content: '你好，请问你对最新的舞蹈视频有什么建议吗？我觉得你的动作编排很专业！',
+          unreadCount: 2
+        },
+        {
+          id: 2,
+          avatar: $r('app.media.profile2'),
+          name: '音乐制作人',
+          time: '昨天',
+          content: '我刚上传了新的音乐，希望你能听听看，给点建议！'
+        }
+      ]
+      await dataManager.savePrivateMessages(this.messages)
+    }
+    this.filteredMessages = this.messages
+
+    // 加载系统通知
+    const notis = await dataManager.getNotifications()
+    this.notifications = Array.isArray(notis) ? notis : []
+  }
+
+  private searchMessages(text: string) {
+    this.searchText = text
+    this.filteredMessages = text.trim() === ''
+      ? this.messages
+      : this.messages.filter(message =>
+    message.name.toLowerCase().includes(text.toLowerCase()) ||
+    message.content.toLowerCase().includes(text.toLowerCase())
+    )
+  }
+
+  // 发送消息，并保存到聊天历史和摘要
+  private async sendMessageNew() {
+    let targetName = this.chatTarget ? this.chatTarget.name : this.sendTargetName.trim()
+    if (!this.sendMessageText.trim() || !targetName) {
+      this.showSendDialog = false
+      return
+    }
+
+    let userId = this.chatTarget ? this.chatTarget.id : Date.now(); // 新用户用时间戳
+    let avatar = this.chatTarget ? this.chatTarget.avatar : $r('app.media.profile1');
+    let nowTime = this.formatTime(new Date());
+    let content = this.sendMessageText;
+
+    // 1. 获取历史
+    let history = await dataManager.getUserMessages(userId);
+    if (!Array.isArray(history)) history = [];
+    // 2. 新增一条“我发的”
+    history.push({
+      id: Date.now(),
+      content: content,
+      isSelf: true,
+      time: nowTime
+    });
+    await dataManager.saveUserMessages(userId, history);
+
+    // 3. 更新主摘要（会话列表）
+    let idx = this.messages.findIndex(msg => msg.id === userId);
+    let msg: Message = {
+      id: userId,
+      avatar: avatar,
+      name: targetName,
+      time: nowTime,
+      content: content,
+      unreadCount: 0
+    };
+    if (idx > -1) {
+      this.messages.splice(idx, 1);
+    }
+    this.messages = [msg, ...this.messages];
+    await dataManager.savePrivateMessages(this.messages);
+    this.filteredMessages = this.messages;
+
+    this.sendMessageText = '';
+    this.sendTargetName = '';
+    this.showSendDialog = false;
+  }
+
+  // 关闭聊天框时也保存数据
+  private async closeSendDialog() {
+    await dataManager.savePrivateMessages(this.messages)
+    this.showSendDialog = false
+    this.sendMessageText = ''
+    this.sendTargetName = ''
+    this.chatTarget = null
+  }
+
+  private formatTime(date: Date): string {
+    let h = date.getHours().toString().padStart(2, '0');
+    let m = date.getMinutes().toString().padStart(2, '0');
+    return `${h}:${m}`;
+  }
+
   @Builder Header() {
     Row() {
       Button() {
-        Text('←')
-          .fontSize(24)
-          .fontColor('#FFFFFF')
+        Text('←').fontSize(24).fontColor('#FFFFFF')
       }
       .backgroundColor('transparent')
-      .onClick(() => {
-        router.back()
-      })
+      .onClick(() => router.back())
 
       Text('消息')
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
         .fontColor('#FFFFFF')
 
+      Row() {
+        Button() {
+          Text('✍️').fontSize(24).fontColor('#FFFFFF')
+        }
+        .backgroundColor('transparent')
 
-      Button() {
-        Text('✍️')
-          .fontSize(24)
-          .fontColor('#FFFFFF')
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/setting'})
-          })
+        Button() {
+          Text('➕').fontSize(24).fontColor('#FFFFFF')
+        }
+        .backgroundColor('transparent')
+        .onClick(() => {
+          this.chatTarget = null
+          this.sendMessageText = ''
+          this.sendTargetName = ''
+          this.showSendDialog = true
+        })
       }
-      .backgroundColor('transparent')
     }
     .width('100%')
     .padding(15)
     .justifyContent(FlexAlign.SpaceBetween)
   }
 
-  /**
-   * 消息标签切换栏构建器
-   * 构建消息类型的切换标签
-   */
   @Builder MessageTabs() {
     Row() {
       ForEach(['private', 'notification', 'mention', 'comment'] as TabType[], (tab: TabType) => {
@@ -159,9 +200,7 @@ struct Messages {
           .fontColor(this.currentTab === tab ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)')
           .fontWeight(this.currentTab === tab ? FontWeight.Bold : FontWeight.Normal)
           .padding(10)
-          .onClick(() => {
-            this.currentTab = tab
-          })
+          .onClick(() => this.currentTab = tab)
       })
     }
     .width('100%')
@@ -170,21 +209,16 @@ struct Messages {
     .borderColor('rgba(255, 255, 255, 0.1)')
   }
 
-  /**
-   * 搜索栏构建器
-   * 构建消息搜索输入框
-   */
   @Builder SearchBar() {
     Row() {
-      Text('🔍')
-        .fontSize(16)
-        .opacity(0.7)
+      Text('🔍').fontSize(16).opacity(0.7)
       TextInput({ placeholder: '搜索联系人或消息' })
         .backgroundColor('transparent')
         .placeholderColor('rgba(255, 255, 255, 0.5)')
         .fontSize(14)
         .width('90%')
         .margin({ left: 10 })
+        .onChange((value: string) => this.searchMessages(value))
     }
     .width('100%')
     .padding(10)
@@ -193,13 +227,22 @@ struct Messages {
     .margin(15)
   }
 
-  /**
-   * 私信列表构建器
-   * 构建私信消息列表
-   */
+  @Builder MessageUnreadCount(message: Message) {
+    if (message.unreadCount !== undefined && message.unreadCount > 0) {
+      Text(message.unreadCount.toString())
+        .width(18)
+        .height(18)
+        .fontSize(12)
+        .textAlign(TextAlign.Center)
+        .borderRadius(9)
+        .backgroundColor('#FF0050')
+        .fontColor('#FFFFFF')
+    }
+  }
+
   @Builder MessageList() {
     List() {
-      ForEach(this.messages, (message: Message) => {
+      ForEach(this.filteredMessages, (message: Message) => {
         ListItem() {
           Row() {
             Image(message.avatar)
@@ -229,22 +272,34 @@ struct Messages {
             }
             .layoutWeight(1)
 
-            if (message.unreadCount) {
-              Text(message.unreadCount.toString())
-                .width(18)
-                .height(18)
-                .fontSize(12)
-                .textAlign(TextAlign.Center)
-                .borderRadius(9)
-                .backgroundColor('#FF0050')
-                .fontColor('#FFFFFF')
+            this.MessageUnreadCount(message)
+
+            Button() {
+              Text('发送').fontSize(12).fontColor('#FF0050')
             }
+            .backgroundColor('rgba(255,255,255,0.08)')
+            .borderRadius(8)
+            .onClick(() => {
+              this.chatTarget = message
+              this.sendMessageText = ''
+              this.sendTargetName = ''
+              this.showSendDialog = true
+            })
           }
           .width('100%')
           .padding(15)
         }
         .onClick(() => {
-          // 处理消息点击
+          router.pushUrl({
+            url: 'pages/Chat',
+            params: {
+              user: {
+                id: message.id,
+                name: message.name,
+                avatar: message.avatar
+              }
+            }
+          })
         })
       })
     }
@@ -252,10 +307,28 @@ struct Messages {
     .layoutWeight(1)
   }
 
-  /**
-   * 通知列表构建器
-   * 构建系统通知列表
-   */
+  @Builder NotificationContent(notification: Notification) {
+    if (notification.content) {
+      Text(notification.content as string)
+        .fontSize(14)
+        .backgroundColor('rgba(255, 255, 255, 0.1)')
+        .padding(10)
+        .borderRadius(8)
+        .margin({ top: 5 })
+        .onClick(() => {
+          if (notification.type === 'comment' && notification.content) {
+            dataManager.addComment(1, {
+              id: Date.now(),
+              userId: notification.id,
+              userName: notification.name,
+              content: notification.content,
+              time: notification.time
+            })
+          }
+        })
+    }
+  }
+
   @Builder NotificationList() {
     List() {
       ForEach(this.notifications, (notification: Notification) => {
@@ -284,14 +357,7 @@ struct Messages {
                 .fontSize(14)
                 .fontColor('rgba(255, 255, 255, 0.8)')
 
-              if (notification.content) {
-                Text(notification.content)
-                  .fontSize(14)
-                  .backgroundColor('rgba(255, 255, 255, 0.1)')
-                  .padding(10)
-                  .borderRadius(8)
-                  .margin({ top: 5 })
-              }
+              this.NotificationContent(notification)
             }
             .layoutWeight(1)
           }
@@ -304,10 +370,66 @@ struct Messages {
     .layoutWeight(1)
   }
 
-  /**
-   * 底部导航栏构建器
-   * 构建应用底部导航菜单
-   */
+  @Builder SendDialog() {
+    Stack() {
+      Column() {
+        Blank()
+          .backgroundColor('rgba(0,0,0,0.4)')
+          .width('100%')
+          .height('100%')
+      }
+      Column() {
+        // 显示“发送给xxx”或昵称输入框
+        Text(`发送给 ${this.chatTarget ? this.chatTarget.name : ''}`)
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .margin({ bottom: 10 })
+          .visibility(this.chatTarget ? Visibility.Visible : Visibility.None)
+
+        TextInput({ placeholder: '请输入联系人昵称' })
+          .width('100%')
+          .padding(10)
+          .backgroundColor('rgba(255,255,255,0.1)')
+          .fontColor('#222')
+          .placeholderColor('#aaa')
+          .onChange((v: string) => { this.sendTargetName = v })
+          .margin({ bottom: 10 })
+          .visibility(this.chatTarget ? Visibility.None : Visibility.Visible)
+
+        TextInput({ placeholder: '请输入消息内容' })
+          .width('100%')
+          .padding(10)
+          .backgroundColor('rgba(255,255,255,0.1)')
+          .fontColor('#222')
+          .placeholderColor('#aaa')
+          .onChange((v: string) => { this.sendMessageText = v })
+          .margin({ bottom: 12 })
+
+        Row() {
+          Button() {
+            Text('取消').fontColor('#888')
+          }
+          .backgroundColor('rgba(0,0,0,0.06)')
+          .onClick(() => { this.closeSendDialog() })
+          Button() {
+            Text('发送').fontColor('#FF0050')
+          }
+          .backgroundColor('rgba(0,0,0,0.06)')
+          .margin({ left: 20 })
+          .onClick(() => { this.sendMessageNew() })
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.End)
+      }
+      .width('80%')
+      .padding(20)
+      .backgroundColor('#fff')
+      .borderRadius(16)
+      .alignItems(HorizontalAlign.Center)
+      .position({ x: '10%', y: '30%' })
+    }
+  }
+
   @Builder BottomNav() {
     Row() {
       ForEach(this.navItems, (item: NavItem) => {
@@ -334,28 +456,36 @@ struct Messages {
     .borderColor('rgba(255, 255, 255, 0.1)')
   }
 
-  /**
-   * 获取标签显示名称
-   * @param tab 标签类型
-   * @returns 标签的显示名称
-   */
-  getTabName(tab: TabType): string {
-    return this.tabNames[tab] || ''
+  @Builder EmptyState() {
+    Column() {
+      Text(this.currentTab === 'mention' ? '@' : '💬')
+        .fontSize(60)
+        .margin({ bottom: 20 })
+      Text(this.currentTab === 'mention' ? '暂无@提及' : '暂无评论')
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+      Text(this.currentTab === 'mention'
+        ? '当有人@你时，会显示在这里'
+        : '当有人评论你时，会显示在这里')
+        .fontSize(14)
+        .opacity(0.7)
+      Button() {
+        Text('➕发起聊天').fontSize(16).fontColor('#FF0050')
+      }
+      .margin({ top: 20 })
+      .onClick(() => {
+        this.chatTarget = null
+        this.sendMessageText = ''
+        this.sendTargetName = ''
+        this.showSendDialog = true
+      })
+    }
+    .width('100%')
+    .height('60%')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
   }
 
-  /**
-   * 获取通知显示文本
-   * @param notification 通知对象
-   * @returns 通知的显示文本
-   */
-  getNotificationText(notification: Notification): string {
-    return this.notificationTypes[notification.type] || ''
-  }
-
-  /**
-   * 页面主体构建函数
-   * 构建整个消息页面的UI结构
-   */
   build() {
     Stack() {
       Column() {
@@ -368,22 +498,7 @@ struct Messages {
         } else if (this.currentTab === 'notification') {
           this.NotificationList()
         } else {
-          // 空状态显示
-          Column() {
-            Text(this.currentTab === 'mention' ? '@' : '💬')
-              .fontSize(60)
-              .margin({ bottom: 20 })
-            Text(this.currentTab === 'mention' ? '暂无@提及' : '暂无评论')
-              .fontSize(18)
-              .fontWeight(FontWeight.Bold)
-            Text(this.currentTab === 'mention' ? '当有人@你时，会显示在这里' : '当有人评论你时，会显示在这里')
-              .fontSize(14)
-              .opacity(0.7)
-          }
-          .width('100%')
-          .height('60%')
-          .justifyContent(FlexAlign.Center)
-          .alignItems(HorizontalAlign.Center)
+          this.EmptyState()
         }
 
         this.BottomNav()
@@ -391,6 +506,10 @@ struct Messages {
       .width('100%')
       .height('100%')
       .backgroundColor('#000000')
+
+      if (this.showSendDialog) {
+        this.SendDialog()
+      }
     }
     .width('100%')
     .height('100%')
