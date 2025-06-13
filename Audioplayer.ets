@@ -86,7 +86,7 @@ struct AudioPlayer {
   // 构建旋转专辑封面（播放时添加旋转动画）/* 使用Image组件和动画属性实现 */
   @Builder AlbumCover() {
     Stack() {
-      Image($r('app.media.album_cover1'))
+      Image($r('app.media.Player'))
         .width(250)
         .height(250)
         .borderRadius(10)

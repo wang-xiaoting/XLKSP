@@ -60,6 +60,7 @@ struct Settings {
       Text(title)
         .fontSize(14)
         .opacity(0.7)
+        .fontColor(Color.Pink)
         .backgroundColor('rgba(0, 0, 0, 0.3)')
         .width('100%')
         .padding(15)
@@ -118,13 +119,13 @@ struct Settings {
     Stack() {
       Column() {
         // 背景渐变
-        Column()
-          .width('100%')
-          .height('100%')
-          .backgroundImage($r('app.media.background1'))
-          .backgroundImageSize(ImageSize.Cover)
-          .blur(3)
-          .opacity(0.8)
+        // Column()
+        //   .width('100%')
+        //   .height('0')
+        //   .backgroundImage($r('app.media.background1'))
+        //   .backgroundImageSize(ImageSize.Cover)
+        //   .blur(3)
+        //   .opacity(0.8)
 
         Column() {
           this.Header()
@@ -230,10 +231,12 @@ struct Settings {
         }
         .width('100%')
         .height('100%')
+        .backgroundImage($r('app.media.background5'))
+        .backgroundImageSize(ImageSize.Cover)
+        .backgroundColor('rgba(24,24,24,0.85)')
       }
       .width('100%')
       .height('100%')
-      .backgroundColor('#000000')
     }
     .width('100%')
     .height('100%')

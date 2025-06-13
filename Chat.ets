@@ -1,5 +1,5 @@
 import router from '@ohos.router';
-import { dataManager, Message, ChatMessage } from '../utils/DataManager';
+import { dataManager, Message, ChatMessage } from '../utils/MangerData';
 
 export interface ChatUser {
   id: number,
@@ -20,10 +20,11 @@ struct Chat {
   @State chatUser: ChatUser = {
     id: 0,
     name: '',
-    avatar: $r('app.media.profile1')
+    avatar: $r('app.media.wudaodaren')
   }
 
   async aboutToAppear() {
+    await dataManager.init(); // 必须初始化
     const params: ChatParams = router.getParams() as ChatParams
     if (params && params.user) {
       this.chatUser = params.user;

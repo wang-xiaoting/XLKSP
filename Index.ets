@@ -34,21 +34,21 @@ struct Index {
       id: 1,
       title: '视频播放',
       description: '畅享高清视频、精彩内容，支持多种格式和悬浮窗播放。',
-      background: $r('app.media.background1'),
+      background: $r('app.media.VideoPlayer'),
       route: 'pages/videoplayer'
     },
     {
       id: 2,
       title: '音频播放',
       description: '沉浸式音乐体验，动态音频可视化，让您的聆听更加震撼。',
-      background: $r('app.media.thumbnail_cover1'),
+      background: $r('app.media.background2'),
       route: 'pages/Audioplayer'
     },
     {
       id: 3,
       title: '个人中心',
       description: '查看您的收藏、历史记录，管理您的音视频资源。',
-      background: $r('app.media.profile2'),
+      background: $r('app.media.background3'),
       route: 'pages/ProfileCenter'
     }
   ]
@@ -109,8 +109,6 @@ struct Index {
       .padding(20)
       .alignItems(HorizontalAlign.Start)
       .justifyContent(FlexAlign.End)
-      .backgroundImage($r('app.media.gradient'))
-      .backgroundImageSize({ width: '100%', height: '100%' })
     }
     .width('100%')
     .height(400)

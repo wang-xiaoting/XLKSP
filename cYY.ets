@@ -1,14 +1,18 @@
 import router from '@ohos.router';
-import { creators, Creator } from './creatorsData';
 
-enum TabType {
-  VIDEOS,
-  LIKES,
-  FAVORITES
+interface CreatorStats {
+  following: number,
+  followers: string,
+  likes: string
 }
 
-interface RouteParams {
-  id?: number | string
+interface Creator {
+  name: string,
+  username: string,
+  avatar: Resource,
+  banner: Resource,
+  bio: string,
+  stats: CreatorStats
 }
 
 interface Video {
@@ -17,11 +21,17 @@ interface Video {
   views: string
 }
 
+enum TabType {
+  VIDEOS = 'videos',
+  LIKES = 'likes',
+  FAVORITES = 'favorites'
+}
+
 interface NavItem {
   icon: string,
   label: string,
   route: string,
-  active: boolean
+  active?: boolean
 }
 
 @Entry
@@ -30,26 +40,31 @@ struct CreatorProfile {
   @State currentTab: TabType = TabType.VIDEOS
   @State isFollowing: boolean = false
   @State isProfileCollapsed: boolean = false
-
-  private videos: Video[] = [
-    { id: 1, thumbnail: $r('app.media.background1'), views: '1.2w' },
-    { id: 2, thumbnail: $r('app.media.thumbnail_cover1'), views: '8.5k' },
-    { id: 3, thumbnail: $r('app.media.thumbnail_cover2'), views: '5.7k' }
-  ]
-
-  @State creator: Creator = creators[0]
-
-  aboutToAppear() {
-    const params = router.getParams() as RouteParams
-    let idNum = typeof params?.id === 'string' ? Number(params.id) : params?.id
-    let found = creators.find(item => item.id === idNum)
-    if (found) {
-      this.creator = found
-    } else {
-      this.creator = creators[0]
+  @State creator: Creator = {
+    name: '橘子皮',
+    username: '@Hhao2071879147',
+    avatar: $r("app.media.wudaodaren"),
+    banner: $r('app.media.background1'),
+    bio: '谁给我做局了',
+    stats: {
+      following: 188,
+      followers: '62',
+      likes: '5240'
     }
-    this.isFollowing = !!this.creator.isFollowing
   }
+
+  @State videos: Video[] = [
+    {
+      id: 1,
+      thumbnail: $r('app.media.thumbnail_cover1'),
+      views: '123.5万'
+    },
+    {
+      id: 2,
+      thumbnail: $r('app.media.thumbnail_cover2'),
+      views: '89.2万'
+    }
+  ]
 
   @Builder Header() {
     Row() {
@@ -86,33 +101,24 @@ struct CreatorProfile {
       Stack() {
         Image(this.creator.banner)
           .width('100%')
-          .height(210)
+          .height(180)
           .objectFit(ImageFit.Cover)
           .brightness(0.7)
-        Row() {
-          Blank().layoutWeight(1)
-          Image(this.creator.avatar)
-            .width(110)
-            .height(110)
-            .borderRadius(55)
-            .border({ width: 4, color: '#fff' })
-            .backgroundColor('#222')
-            .objectFit(ImageFit.Cover)
-            .margin({ bottom: -55 })
-          Blank().layoutWeight(1)
-        }
-        .width('100%')
-        .position({ y: 105 })
+
+        Image(this.creator.avatar)
+          .width(100)
+          .height(100)
+          .borderRadius(50)
+          .border({ width: 3, color: '#000000' })
+          .position({ y: 120 })
       }
-      .width('100%')
-      .height(220)
 
       Column() {
         Text(this.creator.name)
           .fontSize(22)
           .fontWeight(FontWeight.Bold)
           .fontColor('#FFFFFF')
-          .margin({ top: 20, bottom: 5 })
+          .margin({ top: 50, bottom: 5 })
 
         Text(this.creator.username)
           .fontSize(14)
@@ -195,18 +201,6 @@ struct CreatorProfile {
             })
             .borderRadius(4)
             .margin({ left: 15 })
-            .onClick(() => {
-              router.pushUrl({
-                url: 'pages/Chat',
-                params: {
-                  user: {
-                    id: this.creator.id,
-                    name: this.creator.name,
-                    avatar: this.creator.avatar
-                  }
-                }
-              })
-            })
           }
         }
       }

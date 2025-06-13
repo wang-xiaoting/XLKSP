@@ -1,5 +1,5 @@
 import router from '@ohos.router';
-import { dataManager, Message, ChatMessage } from '../utils/DataManager';
+import { dataManager, Message, ChatMessage } from '../utils/MangerData';
 
 interface Notification {
   id: number,
@@ -53,6 +53,7 @@ struct Messages {
   ]
 
   async aboutToAppear() {
+    await dataManager.init(); // 必须初始化
     // 加载本地消息列表
     const msgs = await dataManager.getPrivateMessages()
     if (Array.isArray(msgs) && msgs.length > 0) {
@@ -61,7 +62,7 @@ struct Messages {
       this.messages = [
         {
           id: 1,
-          avatar: $r('app.media.profile1'),
+          avatar: $r('app.media.wudaodaren'),
           name: '舞蹈达人',
           time: '12:30',
           content: '你好，请问你对最新的舞蹈视频有什么建议吗？我觉得你的动作编排很专业！',
@@ -103,7 +104,7 @@ struct Messages {
     }
 
     let userId = this.chatTarget ? this.chatTarget.id : Date.now(); // 新用户用时间戳
-    let avatar = this.chatTarget ? this.chatTarget.avatar : $r('app.media.profile1');
+    let avatar = this.chatTarget ? this.chatTarget.avatar : $r('app.media.wudaodaren');
     let nowTime = this.formatTime(new Date());
     let content = this.sendMessageText;
 
